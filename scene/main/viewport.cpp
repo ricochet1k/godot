@@ -1816,7 +1816,6 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 				*/
 
 				gui.mouse_focus = _gui_find_control(pos);
-				gui.last_mouse_focus = gui.mouse_focus;
 
 				if (!gui.mouse_focus) {
 					gui.mouse_focus_mask = 0;
@@ -2228,28 +2227,27 @@ void Viewport::_gui_input_event(Ref<InputEvent> p_event) {
 	Ref<InputEventScreenTouch> touch_event = p_event;
 	if (touch_event.is_valid()) {
 		Size2 pos = touch_event->get_position();
-		if (touch_event->is_pressed()) {
-			Control *over = _gui_find_control(pos);
-			if (over) {
-				if (over->can_process()) {
-					touch_event = touch_event->xformed_by(Transform2D()); //make a copy
-					if (over == gui.mouse_focus) {
-						pos = gui.focus_inv_xform.xform(pos);
-					} else {
-						pos = over->get_global_transform_with_canvas().affine_inverse().xform(pos);
-					}
-					touch_event->set_position(pos);
-					_gui_call_input(over, touch_event);
-				}
-				set_input_as_handled();
-				return;
-			}
-		} else if (touch_event->get_index() == 0 && gui.last_mouse_focus) {
-			if (gui.last_mouse_focus->can_process()) {
-				touch_event = touch_event->xformed_by(Transform2D()); //make a copy
-				touch_event->set_position(gui.focus_inv_xform.xform(pos));
+		Control *over = _gui_find_control(pos);
+		if (over) {
 
-				_gui_call_input(gui.last_mouse_focus, touch_event);
+			if (!gui.modal_stack.empty()) {
+
+				Control *top = gui.modal_stack.back()->get();
+				if (over != top && !top->is_a_parent_of(over)) {
+
+					return;
+				}
+			}
+			if (over->can_process()) {
+
+				touch_event = touch_event->xformed_by(Transform2D()); //make a copy
+				if (over == gui.mouse_focus) {
+					pos = gui.focus_inv_xform.xform(pos);
+				} else {
+					pos = over->get_global_transform_with_canvas().affine_inverse().xform(pos);
+				}
+				touch_event->set_position(pos);
+				_gui_call_input(over, touch_event);
 			}
 			set_input_as_handled();
 			return;
@@ -2446,9 +2444,6 @@ void Viewport::_gui_remove_control(Control *p_control) {
 		gui.mouse_focus = nullptr;
 		gui.forced_mouse_focus = false;
 		gui.mouse_focus_mask = 0;
-	}
-	if (gui.last_mouse_focus == p_control) {
-		gui.last_mouse_focus = nullptr;
 	}
 	if (gui.key_focus == p_control) {
 		gui.key_focus = nullptr;
@@ -3537,7 +3532,6 @@ Viewport::Viewport() {
 	gui.roots_order_dirty = false;
 	gui.mouse_focus = nullptr;
 	gui.forced_mouse_focus = false;
-	gui.last_mouse_focus = nullptr;
 	gui.subwindow_focused = nullptr;
 	gui.subwindow_drag = SUB_WINDOW_DRAG_DISABLED;
 
